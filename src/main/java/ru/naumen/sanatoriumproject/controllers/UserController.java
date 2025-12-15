@@ -105,7 +105,53 @@ public class UserController {
         return ResponseEntity.ok(roles);
     }
 
-    // TODO МЕТОДЫ ДЛЯ РАБОТЫ С ПРОФИЛЕМ ПОЛЬЗОВАТЕЛЯ
+    @GetMapping("/{userId}/profile")
+    @PreAuthorize("#userId == authentication.principal.id")
+    public ResponseEntity<UserProfileDTO> getUserProfile(@PathVariable Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        UserProfileDTO profile = new UserProfileDTO();
+        profile.setFullName(user.getFullName());
+        profile.setEmail(user.getEmail());
+        profile.setPhone(user.getPhone());
+        profile.setBirthDate(user.getBirthDate());
+
+        return ResponseEntity.ok(profile);
+    }
+
+    @GetMapping("/{userId}/shifts")
+    @PreAuthorize("#userId == authentication.principal.id")
+    public ResponseEntity<List<UserShiftInfoDTO>> getUserShifts(@PathVariable Long userId) {
+        List<Registration> registrations = registrationRepository.findByUserId(userId);
+
+        List<UserShiftInfoDTO> result = registrations.stream()
+                .map(reg -> {
+                    UserShiftInfoDTO dto = new UserShiftInfoDTO();
+                    dto.setShiftId(reg.getShift().getId());
+                    dto.setShiftName(reg.getShift().getName());
+                    dto.setStartDate(reg.getShift().getStartDate());
+                    dto.setEndDate(reg.getShift().getEndDate());
+
+                    if (reg.getRoom() != null) {
+                        dto.setRoomNumber(reg.getRoom().getNumber());
+                        dto.setRoomDescription(reg.getRoom().getDescription());
+                    }
+
+                    List<AppointmentDTO> appointments = appointmentService.getAppointmentsByStudentAndShift(
+                            userId, reg.getShift().getId());
+                    dto.setAppointments(appointments);
+
+                    List<ProcedureCompletionDTO> completions = procedureCompletionService
+                            .getCompletionsByUserAndShift(userId, reg.getShift().getId());
+                    dto.setCompletedProcedures(completions);
+
+                    return dto;
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(result);
+    }
 
     private UserWithRolesDTO convertToDtoWithRoles(User user) {
         UserWithRolesDTO dto = new UserWithRolesDTO();
